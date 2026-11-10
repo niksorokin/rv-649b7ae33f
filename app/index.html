@@ -1100,7 +1100,7 @@ const TCOL = {entry:'#2f4a9e', docs:'#5a72c2', report:'#8fa2dc', lookup:'#c3cfef
 const legend = `<div class="legend"><span><i></i>Stays with people</span><span><i class="ai"></i>AI could take or draft</span></div>`;
 
 /* ---------- shell ---------- */
-const VIEWS = [['person','Personal reports','user'],['team','Team reports','users'],['company','Company report','building'],['plan','Processes & automation','flow'],['ask','Ask Silow','chat']];
+const VIEWS = [['person','Personal reports','user'],['team','Team reports','users'],['company','Company report','building'],['ask','Ask Silow','chat']];
 function shell(){
   $('#nav').innerHTML = VIEWS.map(([v,l,i])=>`<button class="nav" data-v="${v}">${ic(i)}<span>${l}</span>${v==='person'?`<span class="cnt">${PEOPLE.length}</span>`:v==='team'?`<span class="cnt">${TEAMS.length}</span>`:''}</button>`).join('')
     + `<div class="sh">Teams</div>` + TEAMS.map(t=>`<button class="nav sub" data-team="${t.id}"><span class="sw"></span><span>${t.name}</span><span class="cnt">${t.members.length}</span></button>`).join('');
@@ -1118,7 +1118,7 @@ function shell(){
     if(!e.target.closest('.picker')) closePop();
   });
 }
-function go(v){ S.view=v; if(v!=='plan') closeSug(); render(); const sb=$('#sbody'); if(sb) sb.scrollTop=0; syncHash(); }
+function go(v){ if(v==='plan')v='company'; S.view=v; if(v!=='plan') closeSug(); render(); const sb=$('#sbody'); if(sb) sb.scrollTop=0; syncHash(); }
 function syncHash(){ const h = S.view==='person'?`#person/${S.person}`:S.view==='team'?`#team/${S.team}`:S.view==='plan'?(S.tab==='maps'?`#process/${S.proc}`:'#plan'):'#'+S.view;
   if(location.hash!==h) history.replaceState(null,'',location.pathname+location.search+h); }
 function fromHash(){ const [v,id]=location.hash.replace('#','').split('/');
@@ -1127,6 +1127,8 @@ function fromHash(){ const [v,id]=location.hash.replace('#','').split('/');
   else if(['company','ask'].includes(v)) S.view=v; }
 
 function render(){
+  if(S.view==='plan'){S.view='company';S.sel=null;}
+
   $$('.nav[data-v], #mnav [data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===S.view));
   $$('.nav[data-team]').forEach(b=>b.classList.toggle('on', S.view==='team' && b.dataset.team===S.team));
   $$('#wk [data-wi]').forEach(b=>b.classList.toggle('on', +b.dataset.wi===S.wi));
@@ -1139,6 +1141,12 @@ function render(){
   $('#crumb').innerHTML = `<span class="hide-m">Harbor Mutual</span><span class="hide-m">/</span>${crumbs[1]?`<span class="hide-m">${crumbs[0]}</span><span class="hide-m">/</span><b>${esc(crumbs[1])}</b>`:`<b>${crumbs[0]}</b>`}`;
   ({person:rPerson, team:rTeam, company:rCompany, plan:rPlan, ask:rAsk})[S.view]();
   if(S.sel && S.view==='plan') openSug(S.sel, true);
+
+  // Retain recommendation details; remove controls to deleted plan/map screens.
+  document.querySelectorAll('[data-v="plan"],[data-proc]').forEach(el=>{
+    if(el.tagName==='BUTTON') el.remove();
+    else el.replaceWith(document.createTextNode(el.textContent));
+  });
   syncHash();
 }
 
@@ -1185,25 +1193,26 @@ function rPerson(){
   $('#v-person').innerHTML = `<div class="page">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">${picker()}<span class="sp" style="flex:1"></span><span class="pill">${ic('eye',13,2)}What ${esc(first(p))} sees in their own Silow · no scores</span></div>
     <h1 style="margin-top:20px">${esc(nm(p))}’s week</h1>
+    <div class="sec">${secH('01','Top automation opportunities', `About <b>${hm(recTot)} a week</b> back if a similar week repeats. Estimates, not measured savings.`)}
+      <div class="card" style="padding:4px 16px">${recs.map((r,i)=>`<div class="rec"><span class="rk">${i+1}</span><div><div class="t">${r.t}</div><div class="d">${r.d} <span class="muted">· from ${r.cn}</span></div></div><div class="v"><b>≈${hm(r.min)} a week</b><small><span class="pill ${r.pr==='Start now'?'green':''}">${r.pr}</span></small></div></div>`).join('')}</div>
+    </div>
     <div class="lede">${role.title} · ${t.name} · ${wk().label}. <b>${H(pw.dh)} recorded</b> over 5 days, ${pw.eps} tasks in ${apps.length} apps. Most of the week went to <b>${top1.n}</b> (${pct(top1.dh,pw.dh)}) and <b>${top2.n}</b> (${pct(top2.dh,pw.dh)}).</div>
     ${tiles([{l:'Recorded',v:Hn(pw.dh)+'<small>h</small>',s:prev?'vs prev. week '+delta(pw.dh,prev.dh):'first recorded week'},{l:'Tasks',v:pw.eps,s:`${cats.length} work streams`},{l:'Apps',v:apps.length,s:apps.slice(0,2).map(a=>a[0]).join(', ')},{l:'Days',v:5,s:wk().label},{l:'AI could take',v:Hn(pw.aiDh)+'<small>h</small>',s:pct(pw.aiDh,pw.dh)+' of the week',hl:1}])}
-    <div class="sec">${secH('01','Facts first')}
+    <div class="sec">${secH('02','Facts first')}
       ${tiles([{l:'Densest day',v:dense.d,s:hm(dense.min)+' recorded'},{l:'Longest uninterrupted block',v:hm(lb.len),s:pw.cats.find(c=>c.id===lb.cat).n+' · '+lb.d},{l:'Outside working hours',v:hm(pw.afterMin),s:afterDays.length?afterDays.join(', '):'none this week'},{l:'AI tools seen',v:pw.aiShare?pct(pw.aiShare,1):'None',s:pw.aiShare?pw.tools.join(', ')+' · share of sessions':'no AI tool in any session'}],'c4')}
     </div>
-    <div class="sec">${secH('02',`The week, hour by hour`,'Each bar is one stretch of work on the screen. Shaded edges are outside 7:30–18:00.')}
+    <div class="sec">${secH('03',`The week, hour by hour`,'Each bar is one stretch of work on the screen. Shaded edges are outside 7:30–18:00.')}
       <div class="card"><div class="tl">${tlRows}</div><div class="tl-axis"><span></span><div>${axis}</div><span></span></div>
       <div class="legend">${cats.map(c=>`<span><i class="${col[c.id]}"></i>${c.n}</span>`).join('')}</div></div>
     </div>
-    <div class="sec">${secH('03',`Where the ${Hn(pw.dh)} hours went`,'Grouped into work streams. Open a stream to see its tasks, apps and minutes.')}
+    <div class="sec">${secH('04',`Where the ${Hn(pw.dh)} hours went`,'Grouped into work streams. Open a stream to see its tasks, apps and minutes.')}
       <div class="g2"><div class="card" style="padding:6px 16px">${cats.map(c=>`<div class="cat"><button><div><div class="t">${c.n}</div><div class="d">${c.eps} tasks · AI ≈${Math.round(c.ai*100)}%</div></div>
         <div class="track"><i style="width:${(1-c.ai)*100}%"></i><i class="ai" style="width:${c.ai*100}%"></i></div><div class="v">${hm(c.min)}<small>${pct(c.dh,pw.dh)} of week</small></div><span class="chev">${ic('right',14,2)}</span></button>
         <div class="tasks">${c.tasks.map(tk=>`<div class="task"><span>${tk.t}${tk.draft?' <span class="pill ink">draftable</span>':''}</span><span class="a">${tk.app}</span><span class="m">${hm(tk.min)}</span></div>`).join('')}</div></div>`).join('')}${legend.replace('class="legend"','class="legend" style="margin:10px 0 8px"')}</div>
       <div class="card"><h3>By app</h3><div class="meta">Hours on screen per app</div><div class="bars">${apps.map(([a,v])=>bar1(a,'',v,apps[0][1],H(v))).join('')}</div><h3 style="margin-top:22px">By work type</h3><div class="bars">${TYPE_ORDER.map(k=>[k,pw.cats.filter(c=>c.type===k).reduce((a,c)=>a+c.dh,0),pw.cats.filter(c=>c.type===k).reduce((a,c)=>a+c.aiDh,0)]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]).map((x,i,arr)=>bar(TYPES[x[0]],'',x[1],x[2],arr[0][1],H(x[1]))).join('')}</div></div></div>
     </div>
-    <div class="sec">${secH('04','Takeaways')}<div class="take">${t3.map(x=>`<div><div class="n">${x.n}</div><div class="t">${x.t}</div><div class="d">${x.d}</div></div>`).join('')}</div></div>
-    <div class="sec">${secH('05','Top recommendations', `About <b>${hm(recTot)} a week</b> back if a similar week repeats. Estimates, not measured savings.`)}
-      <div class="card" style="padding:4px 16px">${recs.map((r,i)=>`<div class="rec"><span class="rk">${i+1}</span><div><div class="t">${r.t}</div><div class="d">${r.d} <span class="muted">· from ${r.cn}</span></div></div><div class="v"><b>≈${hm(r.min)} a week</b><small><span class="pill ${r.pr==='Start now'?'green':''}">${r.pr}</span></small></div></div>`).join('')}</div>
-    </div>
+    <div class="sec">${secH('05','Takeaways')}<div class="take">${t3.map(x=>`<div><div class="n">${x.n}</div><div class="t">${x.t}</div><div class="d">${x.d}</div></div>`).join('')}</div></div>
+
     <div class="sec">${secH('06',`What ${esc(first(p))} knows`,'Expertise inferred from the work itself — useful when someone needs help or is out.')}
       <div class="know">${know.map(k=>`<div class="kn">${k.risk?'<span class="pill amber" style="margin-bottom:8px">Only one person does this</span>':''}<div class="t">${esc(k.k)}</div><div class="d">${esc(k.ev)}</div></div>`).join('')}</div>
     </div>
@@ -1226,41 +1235,42 @@ function rTeam(){
   $('#v-team').innerHTML = `<div class="page">
     <div class="seg" id="tseg">${TEAMS.map(x=>`<button data-team="${x.id}" class="${x.id===t.id?'on':''}">${x.name}</button>`).join('')}</div>
     <h1 style="margin-top:20px">${t.name}</h1>
+    <div class="sec">${secH('01','Top automation opportunities',`From the plan · 3-week average · at ${money(S.cost)}/h loaded cost.`)}
+      <div class="card" style="padding:2px 16px">${opps.map((o,i)=>`<div class="row click" data-sug="${o.s.id}"><span class="rk">${i+1}</span><div class="grow"><div class="t">${o.s.t}</div><div class="d">${DIR[o.s.dir].n} · ${o.r.people.length} people · approver: ${o.s.approver}</div></div><div class="v"><b>${o.r.back.toFixed(1)} h/wk</b><div class="d">${money(o.r.month)}/mo</div></div><span class="chev">${ic('right',14,2)}</span></div>`).join('')}</div>
+    </div>
     <div class="lede">${t.lede} <b>${t.members.length} people · ${H(tw.dh)} recorded · ${wk().label}.</b></div>
     ${tiles([{l:'People',v:t.members.length,s:[...new Set(t.members.map(p=>ROLES[p.role].noun))].length+' roles'},{l:'Recorded',v:Hn(tw.dh)+'<small>h</small>',s:(tw.dh/10/t.members.length).toFixed(1)+' h per person'},{l:'Tasks',v:tw.eps.toLocaleString('en-US'),s:cats.length+' work streams'},{l:'AI could take',v:Hn(tw.aiDh)+'<small>h</small>',s:pct(tw.aiDh,tw.dh)+' of team time',hl:1},{l:'vs previous week',v:prev?delta(tw.dh,prev.dh):'—',s:prev?WEEKS[S.wi-1].label+': '+H(prev.dh):'first recorded week'},{l:'Outside working hours',v:hm(tw.afterMin),s:pct(tw.afterMin/6,tw.dh,1)+' of recorded time'}],'c6')}
-    <div class="sec">${secH('01','Where the team’s time goes','Bar length is hours; the dark part is what AI could take or draft. Categories come from the team’s own work, not a template.')}
+    <div class="sec">${secH('02','Where the team’s time goes','Bar length is hours; the dark part is what AI could take or draft. Categories come from the team’s own work, not a template.')}
       <div class="g2"><div class="card"><h3>By work stream</h3><div class="bars">${cats.slice(0,9).map(c=>bar(c.n, `${c.people} ${c.people>1?'people':'person'} · ${c.eps} tasks`, c.dh, c.aiDh, cmax, H(c.dh), pct(c.dh,tw.dh))).join('')}</div>${legend}</div>
       <div class="card"><h3>By app</h3><div class="meta">Hours on screen, all people</div><div class="bars">${apps.map(([a,v])=>bar1(a,'',v,apps[0][1],H(v))).join('')}</div></div></div>
     </div>
-    <div class="sec">${secH('02','Three-week trend',`Selected week highlighted. ${t.id==='fin'?'Week 3 is month-end close.':t.id==='intake'?'Week 2 had a storm-related FNOL spike.':t.id==='qa'?'Week 3 was a release week.':''}`)}
+    <div class="sec">${secH('03','Three-week trend',`Selected week highlighted. ${t.id==='fin'?'Week 3 is month-end close.':t.id==='intake'?'Week 2 had a storm-related FNOL spike.':t.id==='qa'?'Week 3 was a release week.':''}`)}
       <div class="trend">${trendCard('Recorded hours',all.map(x=>x.dh/10),v=>v.toFixed(1)+' h')}${trendCard('AI could take',all.map(x=>x.aiDh/10),v=>v.toFixed(1)+' h')}${trendCard('App switches per hour',all.map(x=>x.sw),v=>v.toFixed(1))}${trendCard('Outside working hours',all.map(x=>x.afterMin/60),v=>v.toFixed(1)+' h')}</div>
     </div>
-    <div class="sec">${secH('03','Workload across people','Not a ranking — it shows where the load sits. Click a row for the personal report.')}
+    <div class="sec">${secH('04','Workload across people','Not a ranking — it shows where the load sits. Click a row for the personal report.')}
       <div class="card" style="padding:6px 14px"><div class="wl h"><span>Person</span><span class="xm">Work by type</span><span class="v">Hours</span><span class="v xm">After hrs</span><span class="v">Switch/h</span><span></span></div>
       ${ppl.map(x=>`<div class="wl" data-person="${x.p.id}"><div class="who">${av(x.p)}<span>${esc(nm(x.p))}<small>${ROLES[x.p.role].title}</small></span></div><div class="stack xm" style="width:${x.dh/pmax*100}%">${TYPE_ORDER.map(k=>{ const v=x.cats.filter(c=>c.type===k).reduce((a,c)=>a+c.dh,0); return v?`<i style="background:${TCOL[k]};width:${v/x.dh*100}%" title="${TYPES[k]} · ${H(v)}"></i>`:''; }).join('')}</div><span class="v">${H(x.dh)}</span><span class="v xm">${hm(x.afterMin)}</span><span class="v">${x.sw.toFixed(0)}</span><span class="chev">${ic('right',14,2)}</span></div>`).join('')}
       <div class="legend" style="margin:10px 0 6px">${TYPE_ORDER.filter(k=>tw.types[k]).map(k=>`<span><i style="background:${TCOL[k]}"></i>${TYPES[k]}</span>`).join('')}</div></div>
     </div>
-    <div class="sec">${secH('04','Duplicated work','The same information handled twice. Hours are this week’s estimate from the recorded tasks.')}
+    <div class="sec">${secH('05','Duplicated work','The same information handled twice. Hours are this week’s estimate from the recorded tasks.')}
       <div class="card" style="padding:2px 16px">${dups.map(d=>`<div class="row"><div class="grow"><div class="t">${d.t}</div><div class="d">${d.people} ${d.people>1?'people':'person'} · from ${d.cats.map(c=>cats.find(x=>x.id===c)?.n).filter(Boolean).join(' and ')}</div></div><div class="v"><b>${d.h.toFixed(1)} h</b><div class="d">per week</div></div></div>`).join('')}</div>
     </div>
-    <div class="sec">${secH('05','Handoffs and waits','Where work changes hands and how long it sits before the next step. Median wait, working hours.')}
+    <div class="sec">${secH('06','Handoffs and waits','Where work changes hands and how long it sits before the next step. Median wait, working hours.')}
       <div class="card" style="padding:4px 16px"><div class="ho h"><span>Handoff</span><span class="v">Per week</span><span>Median wait</span><span class="v"></span></div>
       ${hands.map(h=>`<div class="ho"><div><div>${h.what}</div><div class="ft"><b>${teamName(h.from)}</b> → <b>${teamName(h.to)}</b></div></div><span class="v">${h.nn}</span><div class="wbar"><i style="width:${h.ww/wmax*100}%"></i></div><span class="v"><b>${h.ww} h</b></span></div>`).join('')}</div>
     </div>
-    <div class="sec">${secH('06','AI adoption, by trace','Seen in the recordings: which AI tools appear in real work sessions. Not a survey.')}
+    <div class="sec">${secH('07','AI adoption, by trace','Seen in the recordings: which AI tools appear in real work sessions. Not a survey.')}
       ${tiles([{l:'People with an AI trace',v:`${tw.adopters}<small>of ${t.members.length}</small>`,s:pct(tw.adopters,t.members.length)+' of the team'},{l:'Sessions with AI',v:pct(tw.aiAssistDh,tw.dh),s:H(tw.aiAssistDh)+' of work alongside an AI tool'},{l:'Tools seen',v:Object.keys(tools).length||'None',s:Object.entries(tools).sort((a,b)=>b[1]-a[1]).map(x=>x[0]).join(', ')||'no AI tool in any session'}],'c3')}
       <div class="adopt">${[...tw.ppl].sort((a,b)=>b.aiShare-a.aiShare).map(x=>`<span class="ap">${av(x.p)}<span>${esc(nm(x.p))}</span><span class="lv ${x.aiShare?'on':''}">${x.aiShare?pct(x.aiShare,1):'none'}</span></span>`).join('')}</div>
     </div>
-    <div class="sec">${secH('07','Focus and fragmentation',`Compared with the whole recorded company this week.`)}
+    <div class="sec">${secH('08','Focus and fragmentation',`Compared with the whole recorded company this week.`)}
       ${tiles([{l:'App switches per hour',v:tw.sw.toFixed(1),s:'company '+cw.sw.toFixed(1)},{l:'Time in blocks under 15 min',v:pct(tw.frag,1),s:'company '+pct(cw.frag,1)},{l:'Median longest block',v:hm(tw.longestMed),s:'per person, this week'},{l:'Outside working hours',v:pct(tw.afterMin/6,tw.dh,1),s:'company '+pct(cw.afterMin/6,cw.dh,1)}],'c4')}
     </div>
-    <div class="sec">${secH('08','Risks · single points of knowledge','Work only one person does. Worth documenting before anyone is out.')}
+    <div class="sec">${secH('09','Risks · single points of knowledge','Work only one person does. Worth documenting before anyone is out.')}
       <div class="card" style="padding:2px 16px">${t.risks.map(r=>`<div class="row click" data-person="${r.who}">${av(PERSON[r.who])}<div class="grow"><div class="t">${r.t}</div><div class="d">${esc(nm(PERSON[r.who]))} · ${r.ev}</div></div><span class="pill amber">Single point</span><span class="chev">${ic('right',14,2)}</span></div>`).join('')}</div>
     </div>
-    <div class="sec">${secH('09','Patterns')}<div class="take">${t.pats.map((x,i)=>`<div><div class="n">0${i+1}</div><div class="t">${x[0]}</div><div class="d">${x[1]}</div></div>`).join('')}</div></div>
-    <div class="sec">${secH('10','Top automation opportunities',`From the plan · 3-week average · at ${money(S.cost)}/h loaded cost.`)}
-      <div class="card" style="padding:2px 16px">${opps.map((o,i)=>`<div class="row click" data-sug="${o.s.id}"><span class="rk">${i+1}</span><div class="grow"><div class="t">${o.s.t}</div><div class="d">${DIR[o.s.dir].n} · ${o.r.people.length} people · approver: ${o.s.approver}</div></div><div class="v"><b>${o.r.back.toFixed(1)} h/wk</b><div class="d">${money(o.r.month)}/mo</div></div><span class="chev">${ic('right',14,2)}</span></div>`).join('')}</div>
-    </div>
+    <div class="sec">${secH('10','Patterns')}<div class="take">${t.pats.map((x,i)=>`<div><div class="n">0${i+1}</div><div class="t">${x[0]}</div><div class="d">${x[1]}</div></div>`).join('')}</div></div>
+
     <div class="note" style="margin-top:28px">Sample data · fictional. Team reports show work patterns; they never score individuals.</div>
   </div>`;
 }
@@ -1282,33 +1292,34 @@ function rCompany(){
   const trendCard=(l,vals,fmt)=>{ const mx=Math.max(...vals)||1; return `<div class="tc"><div class="l">${l}</div><div class="cols">${vals.map((v,i)=>`<div class="col ${i===S.wi?'on':''}"><i style="height:${Math.max(4,v/mx*56)}px"></i><small>${WEEKS[i].label.replace('Oct ','')}</small></div>`).join('')}</div><div class="now"><span>${wk().label}</span><b>${fmt(vals[S.wi])}</b></div></div>`; };
   $('#v-company').innerHTML = `<div class="page">
     <h1>Harbor Mutual · company report</h1>
+    <div class="sec">${secH('01','Top automation opportunities',`3-week average · ${money(S.cost)}/h loaded cost · model, not a promise.`)}
+      <div class="card" style="padding:2px 16px">${top.map((o,i)=>`<div class="row click" data-sug="${o.s.id}"><span class="rk">${i+1}</span><div class="grow"><div class="t">${o.s.t}</div><div class="d">${DIR[o.s.dir].n} · ${o.r.teams.map(x=>TEAM[x].name).join(' + ')} · ${o.r.people.length} people</div></div><div class="v"><b>${o.r.back.toFixed(1)} h/wk</b><div class="d">${money(o.r.month)}/mo</div></div><span class="chev">${ic('right',14,2)}</span></div>`).join('')}</div>
+    </div>
     <div class="lede">The pilot scope: <b>${TEAMS.length} teams, ${PEOPLE.length} people</b>, ${wk().label}. <b>${H(cw.dh)}</b> of work recorded; <b>${pct(cw.aiDh,cw.dh)}</b> of it is work AI could take or draft. Team totals add up to this page.</div>
     ${tiles([{l:'Teams',v:TEAMS.length,s:'in the pilot scope'},{l:'People',v:PEOPLE.length,s:'recorded this week'},{l:'Recorded',v:Hn(cw.dh)+'<small>h</small>',s:prev?'vs prev. week '+delta(cw.dh,prev.dh):'first recorded week'},{l:'Tasks',v:cw.eps.toLocaleString('en-US'),s:'in work streams'},{l:'AI could take',v:Hn(cw.aiDh)+'<small>h</small>',s:pct(cw.aiDh,cw.dh)+' of recorded time',hl:1},{l:'Plan value',v:kmoney(planTot)+'<small>/mo</small>',s:`model · ${money(S.cost)}/h`}],'c6')}
-    <div class="sec">${secH('01','Where the company’s time goes','Every team’s work streams rolled up into shared work types.')}
+    <div class="sec">${secH('02','Where the company’s time goes','Every team’s work streams rolled up into shared work types.')}
       <div class="g2e"><div class="card"><h3>By work type</h3><div class="bars">${types.map(k=>bar(TYPES[k],'',cw.types[k],tAi[k],tmax,H(cw.types[k]),pct(cw.types[k],cw.dh))).join('')}</div>${legend}</div>
       <div class="card"><h3>Hours by team and work type</h3><div class="meta">Darker = more hours</div><div class="scrollx" style="margin-top:8px"><table class="tbl heatt"><tr><th style="text-align:left">Type</th>${cw.tw.map(x=>`<th>${x.t.letter}</th>`).join('')}</tr>
         ${types.map(k=>`<tr><td>${TYPES[k].replace(' & re-keying','').replace(' & reconciliation','').replace(' & coordination','').replace(' & decisions','').replace(' & lookup','').replace(' & QA','')}</td>${cw.tw.map(x=>`<td class="heat">${x.types[k]?heat(x.types[k],hmax):'<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('')}</table></div>
         <div class="note">${cw.tw.map(x=>`${x.t.letter} = ${x.t.name}`).join(' · ')}</div></div></div>
     </div>
-    <div class="sec">${secH('02','Teams side by side','Click a team for its full report.')}
+    <div class="sec">${secH('03','Teams side by side','Click a team for its full report.')}
       <div class="card scrollx" style="padding:4px 14px"><table class="tbl"><tr><th>Team</th><th>People</th><th>Hours</th><th>Per person</th><th>AI could take</th><th>AI trace</th><th>Switches/h</th><th>After hours</th><th>vs prev.</th></tr>
       ${cw.tw.map((x,i)=>`<tr class="click" data-team="${x.t.id}"><td><b style="font-weight:500">${x.t.name}</b></td><td>${x.ppl.length}</td><td>${Hn(x.dh)}</td><td>${(x.dh/10/x.ppl.length).toFixed(1)}</td><td><span class="ink" style="font-weight:600">${pct(x.aiDh,x.dh)}</span> · ${Hn(x.aiDh)} h</td><td>${x.adopters}/${x.ppl.length}</td><td>${x.sw.toFixed(1)}</td><td>${hm(x.afterMin)}</td><td>${prev?delta(x.dh,prev.tw[i].dh):'—'}</td></tr>`).join('')}
       <tr><td><b>Company</b></td><td><b>${PEOPLE.length}</b></td><td><b>${Hn(cw.dh)}</b></td><td>${(cw.dh/10/PEOPLE.length).toFixed(1)}</td><td><b>${pct(cw.aiDh,cw.dh)}</b> · ${Hn(cw.aiDh)} h</td><td>${cw.adopters}/${PEOPLE.length}</td><td>${cw.sw.toFixed(1)}</td><td>${hm(cw.afterMin)}</td><td>${prev?delta(cw.dh,prev.dh):'—'}</td></tr></table></div>
     </div>
-    <div class="sec">${secH('03','Biggest cross-team handoffs','Ranked by volume × wait. These are where work queues between teams.')}
+    <div class="sec">${secH('04','Biggest cross-team handoffs','Ranked by volume × wait. These are where work queues between teams.')}
       <div class="card" style="padding:4px 16px"><div class="ho h"><span>Handoff</span><span class="v">Per week</span><span>Median wait</span><span class="v"></span></div>
       ${cross.slice(0,7).map(h=>`<div class="ho"><div><div>${h.what}</div><div class="ft"><b>${teamName(h.from)}</b> → <b>${teamName(h.to)}</b></div></div><span class="v">${h.nn}</span><div class="wbar"><i style="width:${h.ww/wmax*100}%"></i></div><span class="v"><b>${h.ww} h</b></span></div>`).join('')}</div>
     </div>
-    <div class="sec">${secH('04','AI adoption across the company','By trace in real sessions. Most adoption is personal and ad hoc; none of it is yet built into a process.')}
+    <div class="sec">${secH('05','AI adoption across the company','By trace in real sessions. Most adoption is personal and ad hoc; none of it is yet built into a process.')}
       <div class="g2"><div class="card"><h3>Sessions alongside an AI tool</h3><div class="bars">${cw.tw.map(x=>bar1(x.t.name,`${x.adopters} of ${x.ppl.length} people`,x.aiAssistDh/x.dh,Math.max(...cw.tw.map(y=>y.aiAssistDh/y.dh)),pct(x.aiAssistDh,x.dh,1))).join('')}</div></div>
       <div class="card"><h3>Tools seen</h3><div class="meta">People using each tool at least once</div><div class="bars">${Object.entries(tools).sort((a,b)=>b[1]-a[1]).map(([k,v])=>bar1(k,'',v,PEOPLE.length,v+' people')).join('')}</div></div></div>
     </div>
-    <div class="sec">${secH('05','Three-week trend','Selected week highlighted.')}
+    <div class="sec">${secH('06','Three-week trend','Selected week highlighted.')}
       <div class="trend">${trendCard('Recorded hours',all.map(x=>x.dh/10),v=>v.toFixed(1)+' h')}${trendCard('AI could take',all.map(x=>x.aiDh/10),v=>v.toFixed(1)+' h')}${trendCard('App switches per hour',all.map(x=>x.sw),v=>v.toFixed(1))}${trendCard('Outside working hours',all.map(x=>x.afterMin/60),v=>v.toFixed(1)+' h')}</div>
     </div>
-    <div class="sec">${secH('06','Top company-wide opportunities',`3-week average · ${money(S.cost)}/h loaded cost · model, not a promise.`,`<button class="btn solid" data-v="plan">Open the automation plan ${ic('right',14,2)}</button>`)}
-      <div class="card" style="padding:2px 16px">${top.map((o,i)=>`<div class="row click" data-sug="${o.s.id}"><span class="rk">${i+1}</span><div class="grow"><div class="t">${o.s.t}</div><div class="d">${DIR[o.s.dir].n} · ${o.r.teams.map(x=>TEAM[x].name).join(' + ')} · ${o.r.people.length} people</div></div><div class="v"><b>${o.r.back.toFixed(1)} h/wk</b><div class="d">${money(o.r.month)}/mo</div></div><span class="chev">${ic('right',14,2)}</span></div>`).join('')}</div>
-    </div>
+
     <div class="note" style="margin-top:28px">Sample data · fictional company. In production these numbers come from your own recordings, processed on your own infrastructure.</div>
   </div>`;
 }
@@ -1540,6 +1551,12 @@ function rAsk(){
   $('#v-ask').innerHTML = `<div class="chat"><div class="chat-col">${hero}<div class="msgs" id="msgs">${msgs}</div>${S.msgs.length?`<div class="sugs" style="justify-content:flex-start;margin-top:20px">${SUGGEST.filter(s=>!S.msgs.some(m=>m.q===s)).slice(0,4).map(s=>`<button data-ask="${esc(s)}">${esc(s)}</button>`).join('')}</div>`:''}</div>
     <div class="composer-wrap"><form class="composer" id="cform"><input id="cq" placeholder="Ask anything about the work — any wording" autocomplete="off" aria-label="Ask Silow"><button class="send" aria-label="Send">${ic('up',16,2.2)}</button></form>
     <div class="composer-f">${ic('lock',12,2)}Sample demo · prepared answers · in production Silow answers from your own data on your own models</div></div></div>`;
+
+  // Retain recommendation details; remove controls to deleted plan/map screens.
+  document.querySelectorAll('[data-v="plan"],[data-proc]').forEach(el=>{
+    if(el.tagName==='BUTTON') el.remove();
+    else el.replaceWith(document.createTextNode(el.textContent));
+  });
   $('#cform').onsubmit = ev=>{ ev.preventDefault(); ask($('#cq').value); };
   $$('[data-ask]').forEach(b=>b.onclick=()=>ask(b.dataset.ask));
   const sb=$('#sbody'); sb.style.scrollBehavior='auto'; sb.scrollTop=sb.scrollHeight; sb.style.scrollBehavior='';
